@@ -736,7 +736,7 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display, struct de
 #endif
 
 	if (txbuflen > 0) {
-		txbuf = vzalloc(txbuflen);
+		txbuf = kzalloc(txbuflen, GFP_KERNEL);
 		if (!txbuf)
 			goto alloc_fail;
 		par->txbuf.buf = txbuf;
@@ -765,7 +765,7 @@ alloc_fail:
 	if (vmem)
 		vfree(vmem);
 	if (txbuf)
-		vfree(txbuf);
+		kfree(txbuf);
 	if (buf)
 		vfree(buf);
 	if (fbops)
@@ -792,7 +792,7 @@ void fbtft_framebuffer_release(struct fb_info *info)
 	fb_deferred_io_cleanup(info);
 	vfree(info->screen_base);
 	if (par->txbuf.buf)
-		vfree(par->txbuf.buf);
+		kfree(par->txbuf.buf);
 	vfree(par->buf);
 	kfree(info->fbops);
 	kfree(info->fbdefio);
