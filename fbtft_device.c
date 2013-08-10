@@ -379,6 +379,20 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
+		.name = "ssd1322fb",
+		.spi = &(struct spi_board_info) {
+			.modalias = "ssd1322fb",
+			.max_speed_hz = 5000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 24 },
+					{ "dc", 25 },
+					{},
+				},
+			}
+		}
+	}, {
 		/* This should be the last item.
 		   Used with the custom argument */
 		.name = "",

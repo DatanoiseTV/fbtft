@@ -70,6 +70,12 @@ config FB_SSD1351
 	help
 	  Framebuffer support for the SSD1351 1.5\" OLED display in 8-bit SPI mode.
 
+config FB_SSD1322
+	tristate "FB driver for the SSD1322 5.6\" OLED display"
+	depends on FB_TFT
+	help
+	  Framebuffer support for the SSD1322 5.6\" LM560G-256064 OLED display in 8-bit SPI mode.
+
 config FB_TFT_FBTFT_DEVICE
 	tristate "Module to for adding FBTFT devices"
 	depends on FB_TFT
