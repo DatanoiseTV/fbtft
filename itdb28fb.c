@@ -38,10 +38,6 @@
                     "04 16 2 7 6 3 2 1 7 7"
 
 
-/* Module Parameter: debug  (also available through sysfs) */
-MODULE_PARM_DEBUG;
-
-
 /* Power supply configuration */
 #define ILI9325_BT  6        /* VGL=Vci*4 , VGH=Vci*4 */
 #define ILI9325_VC  0b011    /* Vci1=Vci*0.80 */
@@ -89,7 +85,7 @@ VCOMH - VCOML < 6.0   =>  4.79 < 6.0
 
 static int itdb28fb_init_display(struct fbtft_par *par)
 {
-	fbtft_dev_dbg(DEBUG_INIT_DISPLAY, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
 	par->fbtftops.reset(par);
 
@@ -182,7 +178,7 @@ static int set_gamma(struct fbtft_par *par, unsigned long *curves)
 	                         0b11111, 0b11111, 0b111, 0b111, 0b111, 0b111, 0b111, 0b111, 0b111, 0b111 };
 	int i,j;
 
-	fbtft_dev_dbg(DEBUG_INIT_DISPLAY, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
 	/* apply mask */
 	for (i=0;i<2;i++)
@@ -207,7 +203,7 @@ static int set_gamma(struct fbtft_par *par, unsigned long *curves)
 
 static void itdb28fb_set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
-	fbtft_dev_dbg(DEBUG_SET_ADDR_WIN, par->info->device, "%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
+	fbtft_par_dbg(DEBUG_SET_ADDR_WIN, par, "%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
 	switch (par->info->var.rotate) {
 	/* R20h = Horizontal GRAM Start Address */
 	/* R21h = Vertical GRAM Start Address */
@@ -235,7 +231,7 @@ static int itdb28fb_verify_gpios(struct fbtft_par *par)
 {
 	int i;
 
-	fbtft_dev_dbg(DEBUG_VERIFY_GPIOS, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_VERIFY_GPIOS, par, "%s()\n", __func__);
 
 	if (par->gpio.dc < 0) {
 		dev_err(par->info->device, "Missing info about 'dc' gpio. Aborting.\n");
@@ -279,7 +275,7 @@ static int itdb28fb_probe_common(struct spi_device *sdev, struct platform_device
 	else
 		dev = &pdev->dev;
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, dev, "%s()\n", __func__);
+	fbtft_init_dbg(dev, "%s()\n", __func__);
 
 	info = fbtft_framebuffer_alloc(&itdb28fb_display, dev);
 	if (!info)
@@ -291,11 +287,10 @@ static int itdb28fb_probe_common(struct spi_device *sdev, struct platform_device
 	else
 		par->pdev = pdev;
 
-	fbtft_debug_init(par);
 	par->fbtftops.init_display = itdb28fb_init_display;
 	par->fbtftops.set_gamma = set_gamma;
 	par->fbtftops.register_backlight = fbtft_register_backlight;
-	par->fbtftops.write_reg = fbtft_write_reg16_bus8;
+	par->fbtftops.write_register = fbtft_write_reg16_bus8;
 	par->fbtftops.set_addr_win = itdb28fb_set_addr_win;
 	par->fbtftops.verify_gpios = itdb28fb_verify_gpios;
 	if (pdev)
@@ -315,7 +310,7 @@ out_release:
 
 static int itdb28fb_remove_common(struct device *dev, struct fb_info *info)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, dev, "%s()\n", __func__);
+	fbtft_init_dbg(dev, "%s()\n", __func__);
 
 	if (info) {
 		fbtft_unregister_framebuffer(info);
@@ -327,7 +322,7 @@ static int itdb28fb_remove_common(struct device *dev, struct fb_info *info)
 
 static int itdb28fb_probe_spi(struct spi_device *spi)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
 	return itdb28fb_probe_common(spi, NULL);
 }
 
@@ -335,13 +330,13 @@ static int itdb28fb_remove_spi(struct spi_device *spi)
 {
 	struct fb_info *info = spi_get_drvdata(spi);
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
 	return itdb28fb_remove_common(&spi->dev, info);
 }
 
 static int itdb28fb_probe_pdev(struct platform_device *pdev)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &pdev->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&pdev->dev, "%s()\n", __func__);
 	return itdb28fb_probe_common(NULL, pdev);
 }
 
@@ -349,7 +344,7 @@ static int itdb28fb_remove_pdev(struct platform_device *pdev)
 {
 	struct fb_info *info = platform_get_drvdata(pdev);
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &pdev->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&pdev->dev, "%s()\n", __func__);
 	return itdb28fb_remove_common(&pdev->dev, info);
 }
 
@@ -381,7 +376,6 @@ static int __init itdb28fb_init(void)
 {
 	int ret;
 
-	fbtft_pr_debug("\n\n"DRVNAME": %s()\n", __func__);
 	ret = spi_register_driver(&itdb28fb_spi_driver);
 	if (ret < 0)
 		return ret;
@@ -390,7 +384,6 @@ static int __init itdb28fb_init(void)
 
 static void __exit itdb28fb_exit(void)
 {
-	fbtft_pr_debug(DRVNAME": %s()\n", __func__);
 	spi_unregister_driver(&itdb28fb_spi_driver);
 	platform_driver_unregister(&itdb28fb_platform_driver);
 }

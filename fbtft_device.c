@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/gpio.h>
 #include <linux/spi/spi.h>
 
 #include "fbtft.h"
@@ -77,10 +78,10 @@ static int txbuflen;
 module_param(txbuflen, int, 0);
 MODULE_PARM_DESC(txbuflen, "txbuflen (override driver default)");
 
-static bool bgr;
-module_param(bgr, bool, 0);
+static int bgr = -1;
+module_param(bgr, int, 0);
 MODULE_PARM_DESC(bgr,
-"Use if Red and Blue color is swapped (supported by some drivers).");
+"BGR bit (supported by some drivers).");
 
 static unsigned startbyte;
 module_param(startbyte, uint, 0);
@@ -104,9 +105,14 @@ module_param(buswidth, uint, 0);
 MODULE_PARM_DESC(buswidth, "Display bus width, used with the custom argument");
 
 static int init[FBTFT_MAX_INIT_SEQUENCE];
-static int init_num = 0;
+static int init_num;
 module_param_array(init, int, &init_num, 0);
 MODULE_PARM_DESC(init, "Init sequence, used with the custom argument");
+
+static unsigned long debug;
+module_param(debug, ulong , 0);
+MODULE_PARM_DESC(debug,
+"level: 0-7 (the remaining 29 bits is for advanced usage)");
 
 static unsigned verbose = 3;
 module_param(verbose, uint, 0);
@@ -122,9 +128,81 @@ struct fbtft_device_display {
 
 static void fbtft_device_pdev_release(struct device *dev);
 
+static int write_gpio16_wr_slow(struct fbtft_par *par, void *buf, size_t len);
+static void adafruit18_green_tab_set_addr_win(struct fbtft_par *par,
+	int xs, int ys, int xe, int ye);
+
+#define ADAFRUIT18_GAMMA \
+		"02 1c 07 12 37 32 29 2d 29 25 2B 39 00 01 03 10\n" \
+		"03 1d 07 06 2E 2C 29 2D 2E 2E 37 3F 00 00 02 10"
+
 /* Supported displays in alphabetical order */
 static struct fbtft_device_display displays[] = {
 	{
+		.name = "adafruit18_black",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_st7735r",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{ "led", 18 },
+					{},
+				},
+				.gamma = ADAFRUIT18_GAMMA,
+			}
+		}
+	}, {
+		.name = "adafruit18_red",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_st7735r",
+			.max_speed_hz = 4000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{ "led", 18 },
+					{},
+				},
+				.gamma = ADAFRUIT18_GAMMA,
+			}
+		}
+	}, {
+		.name = "adafruit18_green",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_st7735r",
+			.max_speed_hz = 4000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+					.fbtftops.set_addr_win = \
+					    adafruit18_green_tab_set_addr_win,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{ "led", 18 },
+					{},
+				},
+				.gamma = ADAFRUIT18_GAMMA,
+			}
+		}
+	}, {
 		.name = "adafruit18fb",
 		.spi = &(struct spi_board_info) {
 			.modalias = "adafruit18fb",
@@ -149,6 +227,25 @@ static struct fbtft_device_display displays[] = {
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "dc", 24 },
+					{ "led", 23 },
+					{},
+				},
+			}
+		}
+	}, {
+		.name = "adafruit22",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_hx8340bn",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 9,
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
 					{ "led", 23 },
 					{},
 				},
@@ -210,6 +307,26 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
+		.name = "hy28a",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_ili9320",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_3,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.startbyte = 0b01110000,
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "led", 18 },
+					{},
+				},
+			}
+		}
+	}, {
 		.name = "hy28afb",
 		.spi = &(struct spi_board_info) {
 			.modalias = "hy28afb",
@@ -233,6 +350,44 @@ static struct fbtft_device_display displays[] = {
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 23 },
 					{ "led", 24 },
+					{},
+				},
+			}
+		}
+	}, {
+		.name = "itdb28",
+		.pdev = &(struct platform_device) {
+			.name = "fb_ili9325",
+			.id = 0,
+			.dev = {
+			.release = fbtft_device_pdev_release,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{},
+				},
+			},
+			}
+		}
+	}, {
+		.name = "itdb28_spi",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_ili9325",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
 					{},
 				},
 			}
@@ -279,6 +434,64 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
+		.name = "mi0283qt-2",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_hx8347d",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.startbyte = 0b01110000,
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{ "led", 18 },
+					{},
+				},
+			}
+		}
+	}, {
+		.name = "mi0283qt-9a",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_ili9341",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 9,
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "led", 18 },
+					{},
+				},
+			}
+		}
+	}, {
+		.name = "nokia3310",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_pcd8544",
+			.max_speed_hz = 400000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+				},
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{ "led", 23 },
+					{},
+				},
+			}
+		}
+	}, {
 		.name = "nokia3310fb",
 		.spi = &(struct spi_board_info) {
 			.modalias = "nokia3310fb",
@@ -291,6 +504,32 @@ static struct fbtft_device_display displays[] = {
 					{ "led", 23 },
 					{},
 				},
+			}
+		}
+	}, {
+		.name = "pioled",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_ssd1351",
+			.max_speed_hz = 20000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 24 },
+					{ "dc", 25 },
+					{},
+				},
+				.gamma =	"0 2 2 2 2 2 2 2 " \
+						"2 2 2 2 2 2 2 2 " \
+						"2 2 2 2 2 2 2 2 " \
+						"2 2 2 2 2 2 2 3 " \
+						"3 3 3 3 3 3 3 3 " \
+						"3 3 3 3 3 3 3 3 " \
+						"3 3 3 4 4 4 4 4 " \
+						"4 4 4 4 4 4 4"
 			}
 		}
 	}, {
@@ -309,12 +548,111 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
+		.name = "sainsmart18",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_st7735r",
+			.max_speed_hz = 32000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+				},
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{},
+				},
+			}
+		}
+	}, {
 		.name = "sainsmart18fb",
 		.spi = &(struct spi_board_info) {
 			.modalias = "sainsmart18fb",
 			.max_speed_hz = 32000000,
 			.mode = SPI_MODE_0,
 			.platform_data = &(struct fbtft_platform_data) {
+				.gpios = (const struct fbtft_gpio []) {
+					{ "reset", 25 },
+					{ "dc", 24 },
+					{},
+				},
+			}
+		}
+	}, {
+		.name = "sainsmart32",
+		.pdev = &(struct platform_device) {
+			.name = "fb_ssd1289",
+			.id = 0,
+			.dev = {
+			.release = fbtft_device_pdev_release,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 16,
+					.txbuflen = -2, /* disable buffer */
+					.backlight = 1,
+					.fbtftops.write = write_gpio16_wr_slow,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{},
+				},
+			},
+		},
+		}
+	}, {
+		.name = "sainsmart32_fast",
+		.pdev = &(struct platform_device) {
+			.name = "fb_ssd1289",
+			.id = 0,
+			.dev = {
+			.release = fbtft_device_pdev_release,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 16,
+					.txbuflen = -2, /* disable buffer */
+					.backlight = 1,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{},
+				},
+			},
+		},
+		}
+	}, {
+		.name = "sainsmart32_latched",
+		.pdev = &(struct platform_device) {
+			.name = "fb_ssd1289",
+			.id = 0,
+			.dev = {
+			.release = fbtft_device_pdev_release,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 16,
+					.txbuflen = -2, /* disable buffer */
+					.backlight = 1,
+					.fbtftops.write = \
+						fbtft_write_gpio16_wr_latched,
+				},
+				.bgr = true,
+				.gpios = (const struct fbtft_gpio []) {
+					{},
+				},
+			},
+		},
+		}
+	}, {
+		.name = "sainsmart32_spi",
+		.spi = &(struct spi_board_info) {
+			.modalias = "fb_ssd1289",
+			.max_speed_hz = 16000000,
+			.mode = SPI_MODE_0,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.bgr = true,
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "dc", 24 },
@@ -420,6 +758,66 @@ static struct fbtft_device_display displays[] = {
 		},
 	}
 };
+
+static int write_gpio16_wr_slow(struct fbtft_par *par, void *buf, size_t len)
+{
+	u16 data;
+	int i;
+#ifndef DO_NOT_OPTIMIZE_FBTFT_WRITE_GPIO
+	static u16 prev_data;
+#endif
+
+	fbtft_par_dbg_hex(DEBUG_WRITE, par, par->info->device, u8, buf, len,
+		"%s(len=%d): ", __func__, len);
+
+	while (len) {
+		data = *(u16 *) buf;
+
+		/* Start writing by pulling down /WR */
+		gpio_set_value(par->gpio.wr, 0);
+
+		/* Set data */
+#ifndef DO_NOT_OPTIMIZE_FBTFT_WRITE_GPIO
+		if (data == prev_data) {
+			gpio_set_value(par->gpio.wr, 0); /* used as delay */
+		} else {
+			for (i = 0; i < 16; i++) {
+				if ((data & 1) != (prev_data & 1))
+					gpio_set_value(par->gpio.db[i],
+								(data & 1));
+				data >>= 1;
+				prev_data >>= 1;
+			}
+		}
+#else
+		for (i = 0; i < 16; i++) {
+			gpio_set_value(par->gpio.db[i], (data & 1));
+			data >>= 1;
+		}
+#endif
+
+		/* Pullup /WR */
+		gpio_set_value(par->gpio.wr, 1);
+
+#ifndef DO_NOT_OPTIMIZE_FBTFT_WRITE_GPIO
+		prev_data = *(u16 *) buf;
+#endif
+		buf += 2;
+		len -= 2;
+	}
+
+	return 0;
+}
+
+static void adafruit18_green_tab_set_addr_win(struct fbtft_par *par,
+						int xs, int ys, int xe, int ye)
+{
+	fbtft_par_dbg(DEBUG_SET_ADDR_WIN, par,
+		"%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
+	write_reg(par, 0x2A, 0, xs + 2, 0, xe + 2);
+	write_reg(par, 0x2B, 0, ys + 1, 0, ye + 1);
+	write_reg(par, 0x2C);
+}
 
 /* used if gpios parameter is present */
 static struct fbtft_gpio fbtft_device_param_gpios[MAX_GPIOS+1] = { };
@@ -607,21 +1005,27 @@ static int __init fbtft_device_init(void)
 			}
 
 			pdata->rotate = rotate;
-			pdata->bgr = bgr;
-			pdata->startbyte = startbyte;
-			pdata->gamma = gamma;
+			if (bgr == 0)
+				pdata->bgr = false;
+			else if (bgr == 1)
+				pdata->bgr = true;
+			if (startbyte)
+				pdata->startbyte = startbyte;
+			if (gamma)
+				pdata->gamma = gamma;
+			pdata->display.debug = debug;
 			if (fps)
 				pdata->fps = fps;
 			if (txbuflen)
 				pdata->txbuflen = txbuflen;
+			if (init_num)
+				pdata->display.init_sequence = init;
 			if (gpio)
 				pdata->gpios = gpio;
 			if (custom) {
 				pdata->display.width = width;
 				pdata->display.height = height;
 				pdata->display.buswidth = buswidth;
-				if (init_num)
-					pdata->display.init_sequence = init;
 			}
 
 			if (displays[i].spi) {

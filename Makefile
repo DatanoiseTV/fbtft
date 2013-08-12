@@ -3,6 +3,15 @@ obj-$(CONFIG_FB_TFT)             += fbtft.o
 fbtft-y                          += fbtft-core.o fbtft-sysfs.o fbtft-bus.o fbtft-io.o
 
 # drivers
+obj-$(CONFIG_FB_TFT_HX8340BN)    += fb_hx8340bn.o
+obj-$(CONFIG_FB_TFT_HX8347D)     += fb_hx8347d.o
+obj-$(CONFIG_FB_TFT_ILI9320)     += fb_ili9320.o
+obj-$(CONFIG_FB_TFT_ILI9325)     += fb_ili9325.o
+obj-$(CONFIG_FB_TFT_ILI9341)     += fb_ili9341.o
+obj-$(CONFIG_FB_TFT_PCD8544)     += fb_pcd8544.o
+obj-$(CONFIG_FB_TFT_SSD1289)     += fb_ssd1289.o
+obj-$(CONFIG_FB_TFT_SSD1351)     += fb_ssd1351.o
+obj-$(CONFIG_FB_TFT_ST7735R)     += fb_st7735r.o
 obj-$(CONFIG_FB_FLEX)            += flexfb.o
 obj-$(CONFIG_FB_ADAFRUIT22)      += adafruit22fb.o
 obj-$(CONFIG_FB_ADAFRUIT18)      += adafruit18fb.o

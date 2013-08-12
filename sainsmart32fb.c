@@ -33,9 +33,6 @@
 #define WIDTH       240
 #define HEIGHT      320
 
-/* Module Parameter: debug  (also available through sysfs) */
-MODULE_PARM_DEBUG;
-
 static bool latched = false;
 module_param(latched, bool, 0);
 MODULE_PARM_DESC(latched, "Use with latched 16-bit databus");
@@ -47,7 +44,7 @@ MODULE_PARM_DESC(speed, "Parallel speed. 1=slow down");
 
 static int sainsmart32fb_init_display(struct fbtft_par *par)
 {
-	fbtft_dev_dbg(DEBUG_INIT_DISPLAY, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
 	par->fbtftops.reset(par);
 
@@ -111,7 +108,7 @@ static int sainsmart32fb_init_display(struct fbtft_par *par)
 
 static void sainsmart32fb_set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
-	fbtft_dev_dbg(DEBUG_SET_ADDR_WIN, par->info->device, "%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
+	fbtft_par_dbg(DEBUG_SET_ADDR_WIN, par, "%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
 
 	switch (par->info->var.rotate) {
 	/* R4Eh - Set GDDRAM X address counter */
@@ -146,7 +143,7 @@ int write_gpio16_wr_slow(struct fbtft_par *par, void *buf, size_t len)
 	static u16 prev_data = 0;
 #endif
 
-	fbtft_dev_dbg(DEBUG_WRITE, par->info->device, "%s(len=%d)\n", __func__, len);
+	fbtft_par_dbg(DEBUG_WRITE, par, "%s(len=%d)\n", __func__, len);
 
 	while (len) {
 		data = *(u16 *) buf;
@@ -191,7 +188,7 @@ static int sainsmart32fb_verify_gpios(struct fbtft_par *par)
 	int i;
 	int num_db = 16;
 
-	fbtft_dev_dbg(DEBUG_VERIFY_GPIOS, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_VERIFY_GPIOS, par, "%s()\n", __func__);
 
 	if (par->gpio.dc < 0) {
 		dev_err(par->info->device, "Missing info about 'dc' gpio. Aborting.\n");
@@ -239,7 +236,7 @@ static int sainsmart32fb_probe_common(struct spi_device *sdev, struct platform_d
 		sainsmart32fb_display.txbuflen = -2; /* disable transmit buffer */
 	}
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, dev, "%s()\n", __func__);
+	fbtft_init_dbg(dev, "%s()\n", __func__);
 
 	info = fbtft_framebuffer_alloc(&sainsmart32fb_display, dev);
 	if (!info)
@@ -251,15 +248,14 @@ static int sainsmart32fb_probe_common(struct spi_device *sdev, struct platform_d
 	else
 		par->pdev = pdev;
 
-	fbtft_debug_init(par);
 	par->fbtftops.init_display = sainsmart32fb_init_display;
 	par->fbtftops.register_backlight = fbtft_register_backlight;
-	par->fbtftops.write_reg = fbtft_write_reg16_bus8;
+	par->fbtftops.write_register = fbtft_write_reg16_bus8;
 	par->fbtftops.set_addr_win = sainsmart32fb_set_addr_win;
 	par->fbtftops.verify_gpios = sainsmart32fb_verify_gpios;
 
 	if (pdev) {
-		par->fbtftops.write_reg = fbtft_write_reg16_bus16;
+		par->fbtftops.write_register = fbtft_write_reg16_bus16;
 		par->fbtftops.write_vmem = fbtft_write_vmem16_bus16;
 		if (latched)
 			par->fbtftops.write = fbtft_write_gpio16_wr_latched;
@@ -284,7 +280,7 @@ out_release:
 
 static int sainsmart32fb_remove_common(struct device *dev, struct fb_info *info)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, dev, "%s()\n", __func__);
+	fbtft_init_dbg(dev, "%s()\n", __func__);
 
 	if (info) {
 		fbtft_unregister_framebuffer(info);
@@ -296,7 +292,6 @@ static int sainsmart32fb_remove_common(struct device *dev, struct fb_info *info)
 
 static int sainsmart32fb_probe_spi(struct spi_device *spi)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
 	return sainsmart32fb_probe_common(spi, NULL);
 }
 
@@ -304,13 +299,11 @@ static int sainsmart32fb_remove_spi(struct spi_device *spi)
 {
 	struct fb_info *info = spi_get_drvdata(spi);
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
 	return sainsmart32fb_remove_common(&spi->dev, info);
 }
 
 static int sainsmart32fb_probe_pdev(struct platform_device *pdev)
 {
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &pdev->dev, "%s()\n", __func__);
 	return sainsmart32fb_probe_common(NULL, pdev);
 }
 
@@ -318,7 +311,6 @@ static int sainsmart32fb_remove_pdev(struct platform_device *pdev)
 {
 	struct fb_info *info = platform_get_drvdata(pdev);
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &pdev->dev, "%s()\n", __func__);
 	return sainsmart32fb_remove_common(&pdev->dev, info);
 }
 
@@ -350,7 +342,6 @@ static int __init sainsmart32fb_init(void)
 {
 	int ret;
 
-	fbtft_pr_debug("\n\n"DRVNAME": %s()\n", __func__);
 	ret = spi_register_driver(&sainsmart32fb_spi_driver);
 	if (ret < 0)
 		return ret;
@@ -359,7 +350,6 @@ static int __init sainsmart32fb_init(void)
 
 static void __exit sainsmart32fb_exit(void)
 {
-	fbtft_pr_debug(DRVNAME": %s()\n", __func__);
 	spi_unregister_driver(&sainsmart32fb_spi_driver);
 	platform_driver_unregister(&sainsmart32fb_platform_driver);
 }

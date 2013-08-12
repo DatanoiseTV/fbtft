@@ -1,5 +1,5 @@
 /*
- * FB driver for the Nokia 5110/3310 LCD display
+ * FB driver for the PCD8544 LCD Controller
  *
  * The display is monochrome and the video memory is RGB565.
  * Any pixel value except 0 turns the pixel on.
@@ -30,15 +30,11 @@
 
 #include "fbtft.h"
 
-
-#define DRVNAME	    "nokia3310fb"
-#define WIDTH       84
-#define HEIGHT      48
-#define TXBUFLEN    84*6
-
-static unsigned contrast = 0x40;
-module_param(contrast, uint, 0);
-MODULE_PARM_DESC(contrast, "Vop[6:0] Contrast: 0 - 0x7F (default: 0x40)");
+#define DRVNAME	       "fb_pcd8544"
+#define WIDTH          84
+#define HEIGHT         48
+#define TXBUFLEN       84*6
+#define DEFAULT_GAMMA  "40" /* gamma is used to control contrast in this driver */
 
 static unsigned tc = 0;
 module_param(tc, uint, 0);
@@ -49,7 +45,7 @@ module_param(bs, uint, 0);
 MODULE_PARM_DESC(bs, "BS[2:0] Bias voltage level: 0-7 (default: 4)");
 
 
-static int nokia3310fb_init_display(struct fbtft_par *par)
+static int init_display(struct fbtft_par *par)
 {
 	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
@@ -61,12 +57,6 @@ static int nokia3310fb_init_display(struct fbtft_par *par)
 							 1:0  V  - Entry mode: horizontal addressing
 							 0:1  H  - Extended instruction set control: extended
 						  */
-
-	/* H=1 Set Vop (contrast) */
-	write_reg(par, 0x80 | (contrast & 0x7F)); /*
-	                         7:1  1
-	                         6-0: Vop[6:0] - Operation voltage
-	                      */
 
 	/* H=1 Temperature control */
 	write_reg(par, 0x04 | (tc & 0x3)); /* 
@@ -102,7 +92,7 @@ static int nokia3310fb_init_display(struct fbtft_par *par)
 	return 0;
 }
 
-static void nokia3310fb_set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
+static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
 	fbtft_par_dbg(DEBUG_SET_ADDR_WIN, par, "%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
 
@@ -118,7 +108,7 @@ static void nokia3310fb_set_addr_win(struct fbtft_par *par, int xs, int ys, int 
 	                      */
 }
 
-static int nokia3310fb_write_vmem(struct fbtft_par *par)
+static int write_vmem(struct fbtft_par *par)
 {
 	u16 *vmem16 = (u16 *)par->info->screen_base;
 	u8 *buf = par->txbuf.buf;
@@ -146,101 +136,41 @@ static int nokia3310fb_write_vmem(struct fbtft_par *par)
 	return ret;
 }
 
-static int nokia3310fb_verify_gpios(struct fbtft_par *par)
+static int set_gamma(struct fbtft_par *par, unsigned long *curves)
 {
-	fbtft_par_dbg(DEBUG_VERIFY_GPIOS, par, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
-	if (par->gpio.dc < 0) {
-		dev_err(par->info->device, "Missing info about 'dc' gpio. Aborting.\n");
-		return -EINVAL;
-	}
+	/* apply mask */
+	curves[0] &= 0x7F;
+
+	write_reg(par, 0x23); /* turn on extended instruction set */
+	write_reg(par, 0x80 | curves[0]);
+	write_reg(par, 0x22); /* turn off extended instruction set */
 
 	return 0;
 }
 
 
-struct fbtft_display nokia3310fb_display = {
+static struct fbtft_display display = {
+	.regwidth = 8,
 	.width = WIDTH,
 	.height = HEIGHT,
 	.txbuflen = TXBUFLEN,
-};
-
-static int nokia3310fb_probe(struct spi_device *spi)
-{
-	struct fb_info *info;
-	struct fbtft_par *par;
-	int ret;
-
-	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
-
-	info = fbtft_framebuffer_alloc(&nokia3310fb_display, &spi->dev);
-	if (!info)
-		return -ENOMEM;
-
-	par = info->par;
-	par->spi = spi;
-	par->fbtftops.write_data_command = fbtft_write_data_command8_bus8;
-	par->fbtftops.write_vmem = nokia3310fb_write_vmem;
-	par->fbtftops.set_addr_win = nokia3310fb_set_addr_win;
-	par->fbtftops.init_display = nokia3310fb_init_display;
-	par->fbtftops.verify_gpios = nokia3310fb_verify_gpios;
-	par->fbtftops.register_backlight = fbtft_register_backlight;
-
-	ret = fbtft_register_framebuffer(info);
-	if (ret < 0)
-		goto out_release;
-
-	return 0;
-
-out_release:
-	fbtft_framebuffer_release(info);
-
-	return ret;
-}
-
-static int nokia3310fb_remove(struct spi_device *spi)
-{
-	struct fb_info *info = spi_get_drvdata(spi);
-
-	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
-
-	if (info) {
-		if (info->bl_dev) {
-			/* turn off backlight or else it will fade out */
-			info->bl_dev->props.power = FB_BLANK_POWERDOWN;
-			info->bl_dev->ops->update_status(info->bl_dev);
-		}
-		fbtft_unregister_framebuffer(info);
-		fbtft_framebuffer_release(info);
-	}
-
-	return 0;
-}
-
-static struct spi_driver nokia3310fb_driver = {
-	.driver = {
-		.name   = DRVNAME,
-		.owner  = THIS_MODULE,
+	.gamma_num = 1,
+	.gamma_len = 1,
+	.gamma = DEFAULT_GAMMA,
+	.fbtftops = {
+		.init_display = init_display,
+		.set_addr_win = set_addr_win,
+		.write_vmem = write_vmem,
+		.set_gamma = set_gamma,
 	},
-	.probe  = nokia3310fb_probe,
-	.remove = nokia3310fb_remove,
+	.backlight = 1,
 };
+FBTFT_REGISTER_DRIVER(DRVNAME, &display);
 
-static int __init nokia3310fb_init(void)
-{
-	return spi_register_driver(&nokia3310fb_driver);
-}
+MODULE_ALIAS("spi:" DRVNAME);
 
-static void __exit nokia3310fb_exit(void)
-{
-	spi_unregister_driver(&nokia3310fb_driver);
-}
-
-/* ------------------------------------------------------------------------- */
-
-module_init(nokia3310fb_init);
-module_exit(nokia3310fb_exit);
-
-MODULE_DESCRIPTION("FB driver for the Nokia 5110/3310 LCD display");
+MODULE_DESCRIPTION("FB driver for the PCD8544 LCD Controller");
 MODULE_AUTHOR("Noralf Tronnes");
 MODULE_LICENSE("GPL");

@@ -32,15 +32,12 @@
 #define HEIGHT      160
 
 
-/* Module Parameter: debug  (also available through sysfs) */
-MODULE_PARM_DEBUG;
-
 // ftp://imall.iteadstudio.com/IM120419001_ITDB02_1.8SP/DS_ST7735.pdf
 // https://github.com/johnmccombs/arduino-libraries/blob/master/ST7735/ST7735.cpp
 
 static int sainsmart18fb_init_display(struct fbtft_par *par)
 {
-	fbtft_dev_dbg(DEBUG_INIT_DISPLAY, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
 
 	par->fbtftops.reset(par);
 
@@ -130,7 +127,7 @@ static int sainsmart18fb_init_display(struct fbtft_par *par)
 
 static int sainsmart18fb_verify_gpios(struct fbtft_par *par)
 {
-	fbtft_dev_dbg(DEBUG_VERIFY_GPIOS, par->info->device, "%s()\n", __func__);
+	fbtft_par_dbg(DEBUG_VERIFY_GPIOS, par, "%s()\n", __func__);
 
 	if (par->gpio.dc < 0) {
 		dev_err(par->info->device, "Missing info about 'dc' gpio. Aborting.\n");
@@ -151,7 +148,7 @@ static int sainsmart18fb_probe(struct spi_device *spi)
 	struct fbtft_par *par;
 	int ret;
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
 
 	info = fbtft_framebuffer_alloc(&sainsmart18_display, &spi->dev);
 	if (!info)
@@ -159,7 +156,6 @@ static int sainsmart18fb_probe(struct spi_device *spi)
 
 	par = info->par;
 	par->spi = spi;
-	fbtft_debug_init(par);
 	par->fbtftops.init_display = sainsmart18fb_init_display;
 	par->fbtftops.verify_gpios = sainsmart18fb_verify_gpios;
 	par->fbtftops.register_backlight = fbtft_register_backlight;
@@ -180,7 +176,7 @@ static int sainsmart18fb_remove(struct spi_device *spi)
 {
 	struct fb_info *info = spi_get_drvdata(spi);
 
-	fbtft_dev_dbg(DEBUG_DRIVER_INIT_FUNCTIONS, &spi->dev, "%s()\n", __func__);
+	fbtft_init_dbg(&spi->dev, "%s()\n", __func__);
 
 	if (info) {
 		fbtft_unregister_framebuffer(info);
@@ -201,13 +197,11 @@ static struct spi_driver sainsmart18fb_driver = {
 
 static int __init sainsmart18fb_init(void)
 {
-	fbtft_pr_debug("\n\n"DRVNAME": %s()\n", __func__);
 	return spi_register_driver(&sainsmart18fb_driver);
 }
 
 static void __exit sainsmart18fb_exit(void)
 {
-	fbtft_pr_debug(DRVNAME": %s()\n", __func__);
 	spi_unregister_driver(&sainsmart18fb_driver);
 }
 
