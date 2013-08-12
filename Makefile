@@ -11,6 +11,7 @@ obj-$(CONFIG_FB_TFT_ILI9341)     += fb_ili9341.o
 obj-$(CONFIG_FB_TFT_PCD8544)     += fb_pcd8544.o
 obj-$(CONFIG_FB_TFT_SSD1289)     += fb_ssd1289.o
 obj-$(CONFIG_FB_TFT_SSD1351)     += fb_ssd1351.o
+obj-$(CONFIG_FB_TFT_SSD1322)     += fb_ssd1322.o
 obj-$(CONFIG_FB_TFT_ST7735R)     += fb_st7735r.o
 obj-$(CONFIG_FB_FLEX)            += flexfb.o
 obj-$(CONFIG_FB_ADAFRUIT22)      += adafruit22fb.o
@@ -23,7 +24,6 @@ obj-$(CONFIG_FB_ILI9341)         += ili9341fb.o
 obj-$(CONFIG_FB_ITDB28)          += itdb28fb.o
 obj-$(CONFIG_FB_HY28A)           += hy28afb.o
 obj-$(CONFIG_FB_SSD1351)         += ssd1351fb.o
-obj-$(CONFIG_FB_SSD1322)         += ssd1322fb.o
 
 # Device modules
 obj-$(CONFIG_FB_TFT_FBTFT_DEVICE) += fbtft_device.o
