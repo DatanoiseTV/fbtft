@@ -15,25 +15,25 @@
 #define GAMMA_LEN   15
 #define DEFAULT_GAMMA "7 1 1 1 1 2 2 3 3 4 4 5 5 6 6"
 
-int init[] = { 			// Initialization for LM560G-256064 5.6" OLED display
-	-1, 0xFD, 0x12,		// Unlock OLED driver IC
-	-1, 0xAE,		// Display OFF (blank)
-	-1, 0xB3, 0xF3,		// Display divide clockratio/frequency
-	-1, 0xCA, 0x3F,		// Multiplex ratio, 1/64, 64 COMS enabled
-	-1, 0xA2, 0x00,		// Set offset, the display map starting line is COM0
-	-1, 0xA1, 0x00,		// Set start line position
-	-1, 0xA0, 0x14, 0x11,	// Set remap, horiz address increment, disable colum address remap,
-				//  enable nibble remap, scan from com[N-1] to COM0, disable COM split odd even
-	-1, 0xAB, 0x01,		// Select external VDD
-	-1, 0xB4, 0xA0, 0xFD,	// Display enhancement A, external VSL, enhanced low GS display quality
-	-1, 0xC1, 0xFF,		// Contrast current, 256 steps, default is 0x7F
-	-1, 0xC7, 0x0F,		// Master contrast current, 16 steps, default is 0x0F
-	-1, 0xB1, 0xF0,		// Phase Length
-	-1, 0xD1, 0x82, 0x20	// Display enhancement B
-	-1, 0xBB, 0x0D,		// Pre-charge voltage
-	-1, 0xBE, 0x00,		// Set VCOMH
-	-1, 0xA6,		// Normal display
-	-1, 0xAF,		// Display ON
+int init[] = {			/* Initialization for LM560G-256064 5.6" OLED display */
+	-1, 0xFD, 0x12,		/* Unlock OLED driver IC */
+	-1, 0xAE,		/* Display OFF (blank) */
+	-1, 0xB3, 0xF3,		/* Display divide clockratio/frequency */
+	-1, 0xCA, 0x3F,		/* Multiplex ratio, 1/64, 64 COMS enabled */
+	-1, 0xA2, 0x00,		/* Set offset, the display map starting line is COM0 */
+	-1, 0xA1, 0x00,		/* Set start line position */
+	-1, 0xA0, 0x14, 0x11,	/* Set remap, horiz address increment, disable colum address remap, */
+				/*  enable nibble remap, scan from com[N-1] to COM0, disable COM split odd even */
+	-1, 0xAB, 0x01,		/* Select external VDD */
+	-1, 0xB4, 0xA0, 0xFD,	/* Display enhancement A, external VSL, enhanced low GS display quality */
+	-1, 0xC1, 0xFF,		/* Contrast current, 256 steps, default is 0x7F */
+	-1, 0xC7, 0x0F,		/* Master contrast current, 16 steps, default is 0x0F */
+	-1, 0xB1, 0xF0,		/* Phase Length */
+	-1, 0xD1, 0x82, 0x20	/* Display enhancement B */
+	-1, 0xBB, 0x0D,		/* Pre-charge voltage */
+	-1, 0xBE, 0x00,		/* Set VCOMH */
+	-1, 0xA6,		/* Normal display */
+	-1, 0xAF,		/* Display ON */
 	-3 };
 
 
@@ -53,11 +53,6 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 	Grayscale Lookup Table
 	GS1 - GS15
 	The "Gamma curve" contains the relative values between the entries in the Lookup table.
-
-	From datasheet:
-	The next 63 data bytes define Gray Scale (GS) Table by 
-	setting the gray scale pulse width in unit of DCLK's 
-	(ranges from 0d ~ 180d) 
 
 	0 = Setting of GS1 < Setting of GS2 < Setting of GS3..... < Setting of GS14 < Setting of GS15
 
@@ -104,9 +99,9 @@ static int blank(struct fbtft_par *par, bool on)
 }
 
 
-#define CYR     613    // 2.392
-#define CYG     601    // 2.348
-#define CYB     233    // 0.912
+#define CYR     613    /* 2.392 */
+#define CYG     601    /* 2.348 */
+#define CYB     233    /* 0.912 */
 
 static unsigned int rgb565_to_y(unsigned int rgb)
 {
@@ -128,10 +123,11 @@ static int write_vmem(struct fbtft_par *par)
 	bl_width = par->info->var.xres;
 	bl_height = par->dirty_lines_end - par->dirty_lines_start+1;
 
-	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s(offset=0x%x bl_width=%d bl_height=%d)\n", __func__, offset, bl_width, bl_height);
+	fbtft_par_dbg(DEBUG_WRITE_VMEM, par,
+		"%s(offset=0x%x bl_width=%d bl_height=%d)\n", __func__, offset, bl_width, bl_height);
 
-	for (y=0;y<bl_height;y++) {
-		for (x=0;x<bl_width/2;x++) {
+	for (y = 0; y < bl_height; y++) {
+		for (x = 0; x < bl_width / 2; x++) {
 			*buf = rgb565_to_y(vmem16[offset++]) >> 8 & 0xF0;
 			*buf++ |= rgb565_to_y(vmem16[offset++]) >> 12;
 		}
