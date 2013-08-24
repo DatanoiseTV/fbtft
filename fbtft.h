@@ -20,6 +20,7 @@
 #define __LINUX_FBTFT_H
 
 #include <linux/fb.h>
+#include <linux/spinlock.h>
 #include <linux/spi/spi.h>
 #include <linux/platform_device.h>
 
@@ -56,7 +57,6 @@ struct fbtft_par;
  * @write: Writes to interface bus
  * @read: Reads from interface bus
  * @write_vmem: Writes video memory to display
- * @write_data_command: Writes to controller register
  * @write_reg: Writes to controller register
  * @set_addr_win: Set the GRAM update window
  * @reset: Reset the LCD controller
@@ -80,15 +80,15 @@ struct fbtft_par;
 struct fbtft_ops {
 	int (*write)(struct fbtft_par *par, void *buf, size_t len);
 	int (*read)(struct fbtft_par *par, void *buf, size_t len);
-	int (*write_vmem)(struct fbtft_par *par);
-	void (*write_data_command)(struct fbtft_par *par, unsigned dc, u32 val);
+	int (*write_vmem)(struct fbtft_par *par, size_t offset, size_t len);
 	void (*write_register)(struct fbtft_par *par, int len, ...);
 
 	void (*set_addr_win)(struct fbtft_par *par,
 		int xs, int ys, int xe, int ye);
 	void (*reset)(struct fbtft_par *par);
 	void (*mkdirty)(struct fb_info *info, int from, int to);
-	void (*update_display)(struct fbtft_par *par);
+	void (*update_display)(struct fbtft_par *par,
+				unsigned start_line, unsigned end_line);
 	int (*init_display)(struct fbtft_par *par);
 	int (*blank)(struct fbtft_par *par, bool on);
 
@@ -186,6 +186,7 @@ struct fbtft_platform_data {
  * @startbyte: Used by some controllers when in SPI mode.
  *             Format: 6 bit Device id + RS bit + RW bit
  * @fbtftops: FBTFT operations provided by driver or device (platform_data)
+ * @dirty_lock: Protects dirty_lines_start and dirty_lines_end
  * @dirty_lines_start: Where to begin updating display
  * @dirty_lines_end: Where to end updating display
  * @gpio.reset: GPIO used to reset display
@@ -206,7 +207,7 @@ struct fbtft_platform_data {
  * @current_debug:
  * @first_update_done: Used to only time the first display update
  * @bgr: BGR mode/\n
- * @extra: Extra info needed by driver (not used by core)
+ * @extra: Extra info needed by driver
  */
 struct fbtft_par {
 	struct spi_device *spi;
@@ -222,6 +223,7 @@ struct fbtft_par {
 	u8 *buf;
 	u8 startbyte;
 	struct fbtft_ops fbtftops;
+	spinlock_t dirty_lock;
 	unsigned dirty_lines_start;
 	unsigned dirty_lines_end;
 	struct {
@@ -255,16 +257,6 @@ do {                                                                     \
 	par->fbtftops.write_register(par, NUMARGS(__VA_ARGS__), __VA_ARGS__); \
 } while (0)
 
-#define write_cmd(par, val)                            \
-do {                                                   \
-	par->fbtftops.write_data_command(par, 0, val); \
-} while (0)
-
-#define write_data(par, val)                           \
-do {                                                   \
-	par->fbtftops.write_data_command(par, 1, val); \
-} while (0)
-
 /* fbtft-core.c */
 extern void fbtft_dbg_hex(const struct device *dev,
 	int groupsize, void *buf, size_t len, const char *fmt, ...);
@@ -291,22 +283,14 @@ extern int fbtft_write_gpio16_wr_latched(struct fbtft_par *par,
 	void *buf, size_t len);
 
 /* fbtft-bus.c */
-extern int fbtft_write_vmem8_bus8(struct fbtft_par *par);
-extern int fbtft_write_vmem16_bus16(struct fbtft_par *par);
-extern int fbtft_write_vmem16_bus8(struct fbtft_par *par);
-extern int fbtft_write_vmem16_bus9(struct fbtft_par *par);
+extern int fbtft_write_vmem8_bus8(struct fbtft_par *par, size_t offset, size_t len);
+extern int fbtft_write_vmem16_bus16(struct fbtft_par *par, size_t offset, size_t len);
+extern int fbtft_write_vmem16_bus8(struct fbtft_par *par, size_t offset, size_t len);
+extern int fbtft_write_vmem16_bus9(struct fbtft_par *par, size_t offset, size_t len);
 extern void fbtft_write_reg8_bus8(struct fbtft_par *par, int len, ...);
 extern void fbtft_write_reg8_bus9(struct fbtft_par *par, int len, ...);
 extern void fbtft_write_reg16_bus8(struct fbtft_par *par, int len, ...);
 extern void fbtft_write_reg16_bus16(struct fbtft_par *par, int len, ...);
-extern void fbtft_write_data_command8_bus8(struct fbtft_par *par,
-	unsigned dc, u32 val);
-extern void fbtft_write_data_command8_bus9(struct fbtft_par *par,
-	unsigned dc, u32 val);
-extern void fbtft_write_data_command16_bus16(struct fbtft_par *par,
-	unsigned dc, u32 val);
-extern void fbtft_write_data_command16_bus8(struct fbtft_par *par,
-	unsigned dc, u32 val);
 
 
 #define FBTFT_REGISTER_DRIVER(_name, _display)                             \

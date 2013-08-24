@@ -34,6 +34,8 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/backlight.h>
+#include <linux/platform_device.h>
+#include <linux/spinlock.h>
 
 #include "fbtft.h"
 
@@ -283,21 +285,15 @@ void fbtft_set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 		"%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
 
 	/* Column address set */
-	write_cmd(par, 0x2A);
-	write_data(par, (xs >> 8) & 0xFF);
-	write_data(par, xs & 0xFF);
-	write_data(par, (xe >> 8) & 0xFF);
-	write_data(par, xe & 0xFF);
+	write_reg(par, 0x2A,
+		(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF);
 
 	/* Row adress set */
-	write_cmd(par, 0x2B);
-	write_data(par, (ys >> 8) & 0xFF);
-	write_data(par, ys & 0xFF);
-	write_data(par, (ye >> 8) & 0xFF);
-	write_data(par, ye & 0xFF);
+	write_reg(par, 0x2B,
+		(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF);
 
 	/* Memory write */
-	write_cmd(par, 0x2C);
+	write_reg(par, 0x2C);
 }
 
 
@@ -313,8 +309,9 @@ void fbtft_reset(struct fbtft_par *par)
 }
 
 
-void fbtft_update_display(struct fbtft_par *par)
+void fbtft_update_display(struct fbtft_par *par, unsigned start_line, unsigned end_line)
 {
+	size_t offset, len;
 	struct timespec ts_start, ts_end, test_of_time;
 	long ms, us, ns;
 	bool timeit = false;
@@ -329,29 +326,31 @@ void fbtft_update_display(struct fbtft_par *par)
 	}
 
 	/* Sanity checks */
-	if (par->dirty_lines_start > par->dirty_lines_end) {
-		fbtft_par_dbg(0xFFFFFFFF, par,
-			"%s: dirty_lines_start=%d is larger than dirty_lines_end=%d. Shouldn't happen, will do full display update\n",
-			__func__, par->dirty_lines_start, par->dirty_lines_end);
-		par->dirty_lines_start = 0;
-		par->dirty_lines_end = par->info->var.yres - 1;
-	}
-	if (par->dirty_lines_start > par->info->var.yres - 1 || par->dirty_lines_end > par->info->var.yres - 1) {
+	if (start_line > end_line) {
 		dev_warn(par->info->device,
-			"%s: dirty_lines_start=%d or dirty_lines_end=%d larger than max=%d. Shouldn't happen, will do full display update\n",
-			__func__, par->dirty_lines_start, par->dirty_lines_end, par->info->var.yres - 1);
-		par->dirty_lines_start = 0;
-		par->dirty_lines_end = par->info->var.yres - 1;
+			"%s: start_line=%u is larger than end_line=%u. Shouldn't happen, will do full display update\n",
+			__func__, start_line, end_line);
+		start_line = 0;
+		end_line = par->info->var.yres - 1;
+	}
+	if (start_line > par->info->var.yres - 1 || end_line > par->info->var.yres - 1) {
+		dev_warn(par->info->device,
+			"%s: start_line=%u or end_line=%u is larger than max=%d. Shouldn't happen, will do full display update\n",
+			__func__, start_line, end_line, par->info->var.yres - 1);
+		start_line = 0;
+		end_line = par->info->var.yres - 1;
 	}
 
-	fbtft_par_dbg(DEBUG_UPDATE_DISPLAY, par, "%s: dirty_lines_start=%d dirty_lines_end=%d\n",
-		__func__, par->dirty_lines_start, par->dirty_lines_end);
+	fbtft_par_dbg(DEBUG_UPDATE_DISPLAY, par, "%s(start_line=%u, end_line=%u)\n",
+		__func__, start_line, end_line);
 
 	if (par->fbtftops.set_addr_win)
-		par->fbtftops.set_addr_win(par, 0, par->dirty_lines_start,
-				par->info->var.xres-1, par->dirty_lines_end);
+		par->fbtftops.set_addr_win(par, 0, start_line,
+				par->info->var.xres-1, end_line);
 
-	ret = par->fbtftops.write_vmem(par);
+	offset = start_line * par->info->fix.line_length;
+	len = (end_line - start_line + 1) * par->info->fix.line_length;
+	ret = par->fbtftops.write_vmem(par, offset, len);
 	if (ret < 0)
 		dev_err(par->info->device,
 			"%s: write_vmem failed to update display buffer\n",
@@ -367,13 +366,9 @@ void fbtft_update_display(struct fbtft_par *par)
 			"Elapsed time for display update: %4lu.%.3lu%.3lu ms (fps: %2lu, lines=%u)\n",
 			ms, us, ns,
 			test_of_time.tv_nsec ? 1000000000 / test_of_time.tv_nsec : 0,
-			par->dirty_lines_end - par->dirty_lines_start + 1);
+			end_line - start_line + 1);
 		par->first_update_done = true;
 	}
-
-	/* set display line markers as clean */
-	par->dirty_lines_start = par->info->var.yres - 1;
-	par->dirty_lines_end = 0;
 }
 
 
@@ -389,10 +384,12 @@ void fbtft_mkdirty(struct fb_info *info, int y, int height)
 	}
 
 	/* Mark display lines/area as dirty */
+	spin_lock(&par->dirty_lock);
 	if (y < par->dirty_lines_start)
 		par->dirty_lines_start = y;
 	if (y + height - 1 > par->dirty_lines_end)
 		par->dirty_lines_end = y + height - 1;
+	spin_unlock(&par->dirty_lock);
 
 	/* Schedule deferred_io to update display (no-op if already on queue)*/
 	schedule_delayed_work(&info->deferred_work, fbdefio->delay);
@@ -401,10 +398,19 @@ void fbtft_mkdirty(struct fb_info *info, int y, int height)
 void fbtft_deferred_io(struct fb_info *info, struct list_head *pagelist)
 {
 	struct fbtft_par *par = info->par;
+	unsigned dirty_lines_start, dirty_lines_end;
 	struct page *page;
 	unsigned long index;
 	unsigned y_low = 0, y_high = 0;
 	int count = 0;
+
+	spin_lock(&par->dirty_lock);
+	dirty_lines_start = par->dirty_lines_start;
+	dirty_lines_end = par->dirty_lines_end;
+	/* set display line markers as clean */
+	par->dirty_lines_start = par->info->var.yres - 1;
+	par->dirty_lines_end = 0;
+	spin_unlock(&par->dirty_lock);
 
 	/* Mark display lines as dirty */
 	list_for_each_entry(page, pagelist, lru) {
@@ -417,13 +423,14 @@ void fbtft_deferred_io(struct fb_info *info, struct list_head *pagelist)
 			page->index, y_low, y_high);
 		if (y_high > info->var.yres - 1)
 			y_high = info->var.yres - 1;
-		if (y_low < par->dirty_lines_start)
-			par->dirty_lines_start = y_low;
-		if (y_high > par->dirty_lines_end)
-			par->dirty_lines_end = y_high;
+		if (y_low < dirty_lines_start)
+			dirty_lines_start = y_low;
+		if (y_high > dirty_lines_end)
+			dirty_lines_end = y_high;
 	}
 
-	par->fbtftops.update_display(info->par);
+	par->fbtftops.update_display(info->par,
+					dirty_lines_start, dirty_lines_end);
 }
 
 
@@ -551,8 +558,6 @@ void fbtft_merge_fbtftops(struct fbtft_ops *dst, struct fbtft_ops *src)
 		dst->read = src->read;
 	if (src->write_vmem)
 		dst->write_vmem = src->write_vmem;
-	if (src->write_data_command)
-		dst->write_data_command = src->write_data_command;
 	if (src->write_register)
 		dst->write_register = src->write_register;
 	if (src->set_addr_win)
@@ -649,7 +654,7 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 			fps = pdata->fps;
 		if (pdata->txbuflen)
 			txbuflen = pdata->txbuflen;
-		rotate = pdata->rotate & 3;
+		rotate = pdata->rotate;
 		bgr = pdata->bgr;
 		startbyte = pdata->startbyte;
 		if (pdata->display.init_sequence)
@@ -666,8 +671,8 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	fbtft_expand_debug_value(&display->debug);
 
 	switch (rotate) {
-	case 1:
-	case 3:
+	case 90:
+	case 270:
 		width =  display->height;
 		height = display->width;
 		break;
@@ -754,10 +759,7 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	par->pdata = dev->platform_data;
 	par->debug = display->debug;
 	par->buf = buf;
-	/* Set display line markers as dirty for all.
-	   Ensures that the first update is updating the whole display. */
-	par->dirty_lines_start = 0;
-	par->dirty_lines_end = par->info->var.yres - 1;
+	spin_lock_init(&par->dirty_lock);
 	par->bgr = bgr;
 	par->startbyte = startbyte;
 	par->init_sequence = init_sequence;
@@ -792,7 +794,6 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	par->fbtftops.write = fbtft_write_spi;
 	par->fbtftops.read = fbtft_read_spi;
 	par->fbtftops.write_vmem = fbtft_write_vmem16_bus8;
-	par->fbtftops.write_data_command = fbtft_write_data_command8_bus8;
 	par->fbtftops.write_register = fbtft_write_reg8_bus8;
 	par->fbtftops.set_addr_win = fbtft_set_addr_win;
 	par->fbtftops.reset = fbtft_reset;
@@ -896,7 +897,8 @@ int fbtft_register_framebuffer(struct fb_info *fb_info)
 			goto reg_fail;
 	}
 
-	par->fbtftops.update_display(par);
+	/* update the entire display */
+	par->fbtftops.update_display(par, 0, par->info->var.yres - 1);
 
 	if (par->fbtftops.set_gamma && par->gamma.curves) {
 		ret = par->fbtftops.set_gamma(par, par->gamma.curves);
@@ -1192,21 +1194,13 @@ int fbtft_probe_common(struct fbtft_display *display,
 	/* write register functions */
 	if (display->regwidth == 8 && display->buswidth == 8) {
 		par->fbtftops.write_register = fbtft_write_reg8_bus8;
-		par->fbtftops.write_data_command = \
-			fbtft_write_data_command8_bus8;
 	} else
 	if (display->regwidth == 8 && display->buswidth == 9 && par->spi) {
 		par->fbtftops.write_register = fbtft_write_reg8_bus9;
-		par->fbtftops.write_data_command = \
-			fbtft_write_data_command8_bus9;
 	} else if (display->regwidth == 16 && display->buswidth == 8) {
 		par->fbtftops.write_register = fbtft_write_reg16_bus8;
-		par->fbtftops.write_data_command = \
-			fbtft_write_data_command16_bus8;
 	} else if (display->regwidth == 16 && display->buswidth == 16) {
 		par->fbtftops.write_register = fbtft_write_reg16_bus16;
-		par->fbtftops.write_data_command = \
-			fbtft_write_data_command16_bus16;
 	} else {
 		dev_warn(dev,
 			"no default functions for regwidth=%d and buswidth=%d\n",

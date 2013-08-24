@@ -39,8 +39,8 @@ MODULE_PARM_DESC(name, "Devicename (required). " \
 
 static unsigned rotate;
 module_param(rotate, uint, 0);
-MODULE_PARM_DESC(rotate, "Rotate display 0=normal, 1=clockwise, " \
-"2=upside down, 3=counterclockwise (not supported by all drivers)");
+MODULE_PARM_DESC(rotate,
+"Angle to rotate display counter clockwise: 0, 90, 180, 270");
 
 static unsigned busnum;
 module_param(busnum, uint, 0);
@@ -139,7 +139,7 @@ static void adafruit18_green_tab_set_addr_win(struct fbtft_par *par,
 /* Supported displays in alphabetical order */
 static struct fbtft_device_display displays[] = {
 	{
-		.name = "adafruit18_black",
+		.name = "adafruit18",
 		.spi = &(struct spi_board_info) {
 			.modalias = "fb_st7735r",
 			.max_speed_hz = 32000000,
@@ -149,27 +149,6 @@ static struct fbtft_device_display displays[] = {
 					.buswidth = 8,
 					.backlight = 1,
 				},
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{ "led", 18 },
-					{},
-				},
-				.gamma = ADAFRUIT18_GAMMA,
-			}
-		}
-	}, {
-		.name = "adafruit18_red",
-		.spi = &(struct spi_board_info) {
-			.modalias = "fb_st7735r",
-			.max_speed_hz = 4000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.display = {
-					.buswidth = 8,
-					.backlight = 1,
-				},
-				.bgr = true,
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "dc", 24 },
@@ -203,36 +182,6 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
-		.name = "adafruit18fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "adafruit18fb",
-			.max_speed_hz = 4000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{ "led", 23 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "adafruit18greenfb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "adafruit18greenfb",
-			.max_speed_hz = 4000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{ "led", 23 },
-					{},
-				},
-			}
-		}
-	}, {
 		.name = "adafruit22",
 		.spi = &(struct spi_board_info) {
 			.modalias = "fb_hx8340bn",
@@ -244,20 +193,6 @@ static struct fbtft_device_display displays[] = {
 					.backlight = 1,
 				},
 				.bgr = true,
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "led", 23 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "adafruit22fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "adafruit22fb",
-			.max_speed_hz = 32000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "led", 23 },
@@ -322,34 +257,6 @@ static struct fbtft_device_display displays[] = {
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "led", 18 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "hy28afb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "hy28afb",
-			.max_speed_hz = 32000000,
-			.mode = SPI_MODE_3,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "led", 18 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "ili9341fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "ili9341fb",
-			.max_speed_hz = 32000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 23 },
-					{ "led", 24 },
 					{},
 				},
 			}
@@ -510,21 +417,6 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
-		.name = "nokia3310fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "nokia3310fb",
-			.max_speed_hz = 4000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{ "led", 23 },
-					{},
-				},
-			}
-		}
-	}, {
 		.name = "pioled",
 		.spi = &(struct spi_board_info) {
 			.modalias = "fb_ssd1351",
@@ -551,21 +443,6 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
-		.name = "r61505ufb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "r61505ufb",
-			.max_speed_hz = 32000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 23 },
-					{ "led", 24 },
-					{ "dc", 7 },
-					{},
-				},
-			}
-		}
-	}, {
 		.name = "sainsmart18",
 		.spi = &(struct spi_board_info) {
 			.modalias = "fb_st7735r",
@@ -575,20 +452,6 @@ static struct fbtft_device_display displays[] = {
 				.display = {
 					.buswidth = 8,
 				},
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "sainsmart18fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "sainsmart18fb",
-			.max_speed_hz = 32000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
 				.gpios = (const struct fbtft_gpio []) {
 					{ "reset", 25 },
 					{ "dc", 24 },
@@ -679,34 +542,6 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
-		.name = "sainsmart32spifb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "sainsmart32spifb",
-			.max_speed_hz = 16000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 25 },
-					{ "dc", 24 },
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "sainsmart32fb",
-		.pdev = &(struct platform_device) {
-			.name = "sainsmart32fb",
-			.id = 0,
-			.dev = {
-			.release = fbtft_device_pdev_release,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{},
-				},
-			},
-		},
-		}
-	}, {
 		.name = "spidev",
 		.spi = &(struct spi_board_info) {
 			.modalias = "spidev",
@@ -716,20 +551,6 @@ static struct fbtft_device_display displays[] = {
 			.mode = SPI_MODE_0,
 			.platform_data = &(struct fbtft_platform_data) {
 				.gpios = (const struct fbtft_gpio []) {
-					{},
-				},
-			}
-		}
-	}, {
-		.name = "ssd1351fb",
-		.spi = &(struct spi_board_info) {
-			.modalias = "ssd1351fb",
-			.max_speed_hz = 20000000,
-			.mode = SPI_MODE_0,
-			.platform_data = &(struct fbtft_platform_data) {
-				.gpios = (const struct fbtft_gpio []) {
-					{ "reset", 24 },
-					{ "dc", 25 },
 					{},
 				},
 			}
@@ -953,8 +774,13 @@ static int __init fbtft_device_init(void)
 
 	pr_debug(DRVNAME":  name='%s', busnum=%d, cs=%d\n", name, busnum, cs);
 
-	if (rotate > 3) {
-		pr_warn("argument 'rotate' illegal value: %d (0-3). Setting it to 0.\n",
+	if (rotate > 0 && rotate < 4) {
+		rotate = (4 - rotate) * 90;
+		pr_warn("argument 'rotate' should be an angle. Values 1-3 is deprecated. Setting it to %d.\n",
+			rotate);
+	}
+	if (rotate != 0 && rotate != 90 && rotate != 180 && rotate != 270) {
+		pr_warn("argument 'rotate' illegal value: %d. Setting it to 0.\n",
 			rotate);
 		rotate = 0;
 	}

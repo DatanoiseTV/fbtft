@@ -1,3 +1,5 @@
+#include <linux/export.h>
+#include <linux/errno.h>
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include "fbtft.h"
@@ -120,112 +122,12 @@ EXPORT_SYMBOL(fbtft_write_reg8_bus9);
 
 /*****************************************************************************
  *
- *   void (*write_data_command)(struct fbtft_par *par, unsigned dc, u32 val);
- *
- *****************************************************************************/
-
-/* 8-bit register over 8-bit databus */
-void
-fbtft_write_data_command8_bus8(struct fbtft_par *par, unsigned dc, u32 val)
-{
-	int ret;
-
-	fbtft_par_dbg(DEBUG_WRITE_DATA_COMMAND, par, "%s: dc=%d, val=0x%X\n",
-		__func__, dc, val);
-
-	if (par->gpio.dc != -1)
-		gpio_set_value(par->gpio.dc, dc);
-
-	*par->buf = (u8)val;
-
-	ret = par->fbtftops.write(par, par->buf, 1);
-	if (ret < 0)
-		dev_err(par->info->device,
-			"%s: dc=%d, val=0x%X, failed with status %d\n",
-			__func__, dc, val, ret);
-}
-EXPORT_SYMBOL(fbtft_write_data_command8_bus8);
-
-/* 8-bit register/data over 9-bit SPI: dc + 8-bit */
-void
-fbtft_write_data_command8_bus9(struct fbtft_par *par, unsigned dc, u32 val)
-{
-	int ret;
-
-	fbtft_par_dbg(DEBUG_WRITE_DATA_COMMAND, par, "%s: dc=%d, val=0x%X\n",
-		__func__, dc, val);
-
-	*(u16 *)par->buf = dc ? 0x100 | (u8)val : (u8)val;
-
-	ret = par->fbtftops.write(par, par->buf, 2);
-	if (ret < 0)
-		dev_err(par->info->device,
-			"%s: dc=%d, val=0x%X, failed with status %d\n",
-			__func__, dc, val, ret);
-}
-EXPORT_SYMBOL(fbtft_write_data_command8_bus9);
-
-void
-fbtft_write_data_command16_bus16(struct fbtft_par *par, unsigned dc, u32 val)
-{
-	int ret;
-
-	fbtft_par_dbg(DEBUG_WRITE_DATA_COMMAND, par, "%s: dc=%d, val=0x%X\n",
-		__func__, dc, val);
-
-	if (par->gpio.dc != -1)
-		gpio_set_value(par->gpio.dc, dc);
-
-	*(u16 *)par->buf = (u16)val;
-
-	ret = par->fbtftops.write(par, par->buf, 2);
-	if (ret < 0)
-		dev_err(par->info->device,
-			"%s: dc=%d, val=0x%X, failed with status %d\n",
-			__func__, dc, val, ret);
-}
-EXPORT_SYMBOL(fbtft_write_data_command16_bus16);
-
-void
-fbtft_write_data_command16_bus8(struct fbtft_par *par, unsigned dc, u32 val)
-{
-	int ret;
-	unsigned offset = 0;
-
-	fbtft_par_dbg(DEBUG_WRITE_DATA_COMMAND, par, "%s: dc=%d, val=0x%X\n",
-		__func__, dc, val);
-
-	if (par->gpio.dc != -1)
-		gpio_set_value(par->gpio.dc, dc);
-
-	if (par->startbyte) {
-		if (dc)
-			*(u8 *)par->buf = par->startbyte | 0x2;
-		else
-			*(u8 *)par->buf = par->startbyte;
-		offset = 1;
-	}
-
-	*(u16 *)(par->buf + offset) = cpu_to_be16((u16)val);
-	ret = par->fbtftops.write(par, par->buf, 2 + offset);
-	if (ret < 0)
-		dev_err(par->info->device,
-			"%s: dc=%d, val=0x%X, failed with status %d\n",
-			__func__, dc, val, ret);
-}
-EXPORT_SYMBOL(fbtft_write_data_command16_bus8);
-
-
-
-
-/*****************************************************************************
- *
  *   int (*write_vmem)(struct fbtft_par *par);
  *
  *****************************************************************************/
 
 /* 16 bit pixel over 8-bit databus */
-int fbtft_write_vmem16_bus8(struct fbtft_par *par)
+int fbtft_write_vmem16_bus8(struct fbtft_par *par, size_t offset, size_t len)
 {
 	u16 *vmem16;
 	u16 *txbuf16 = (u16 *)par->txbuf.buf;
@@ -234,16 +136,13 @@ int fbtft_write_vmem16_bus8(struct fbtft_par *par)
 	size_t tx_array_size;
 	int i;
 	int ret = 0;
-	size_t offset, len;
 	size_t startbyte_size = 0;
 
-	offset = par->dirty_lines_start * par->info->fix.line_length;
-	len = (par->dirty_lines_end - par->dirty_lines_start + 1) * par->info->fix.line_length;
+	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s(offset=%zu, len=%zu)\n",
+		__func__, offset, len);
+
 	remain = len / 2;
 	vmem16 = (u16 *)(par->info->screen_base + offset);
-
-	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s: offset=%d, len=%d\n",
-		__func__, offset, len);
 
 	if (par->gpio.dc != -1)
 		gpio_set_value(par->gpio.dc, 1);
@@ -264,7 +163,7 @@ int fbtft_write_vmem16_bus8(struct fbtft_par *par)
 
 	while (remain) {
 		to_copy = remain > tx_array_size ? tx_array_size : remain;
-		dev_dbg(par->info->device, "    to_copy=%d, remain=%d\n",
+		dev_dbg(par->info->device, "    to_copy=%zu, remain=%zu\n",
 						to_copy, remain - to_copy);
 
 		for (i = 0; i < to_copy; i++)
@@ -283,7 +182,7 @@ int fbtft_write_vmem16_bus8(struct fbtft_par *par)
 EXPORT_SYMBOL(fbtft_write_vmem16_bus8);
 
 /* 16 bit pixel over 9-bit SPI bus: dc + high byte, dc + low byte */
-int fbtft_write_vmem16_bus9(struct fbtft_par *par)
+int fbtft_write_vmem16_bus9(struct fbtft_par *par, size_t offset, size_t len)
 {
 	u8 *vmem8;
 	u16 *txbuf16 = par->txbuf.buf;
@@ -292,26 +191,23 @@ int fbtft_write_vmem16_bus9(struct fbtft_par *par)
 	size_t tx_array_size;
 	int i;
 	int ret = 0;
-	size_t offset, len;
+
+	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s(offset=%zu, len=%zu)\n",
+		__func__, offset, len);
 
 	if (!par->txbuf.buf) {
 		dev_err(par->info->device, "%s: txbuf.buf is NULL\n", __func__);
 		return -1;
 	}
 
-	offset = par->dirty_lines_start * par->info->fix.line_length;
-	len = (par->dirty_lines_end - par->dirty_lines_start + 1) * par->info->fix.line_length;
 	remain = len;
 	vmem8 = par->info->screen_base + offset;
-
-	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s: offset=%d, len=%d\n",
-		__func__, offset, len);
 
 	tx_array_size = par->txbuf.len / 2;
 
 	while (remain) {
 		to_copy = remain > tx_array_size ? tx_array_size : remain;
-		dev_dbg(par->info->device, "    to_copy=%d, remain=%d\n",
+		dev_dbg(par->info->device, "    to_copy=%zu, remain=%zu\n",
 						to_copy, remain - to_copy);
 
 #ifdef __LITTLE_ENDIAN
@@ -334,7 +230,7 @@ int fbtft_write_vmem16_bus9(struct fbtft_par *par)
 }
 EXPORT_SYMBOL(fbtft_write_vmem16_bus9);
 
-int fbtft_write_vmem8_bus8(struct fbtft_par *par)
+int fbtft_write_vmem8_bus8(struct fbtft_par *par, size_t offset, size_t len)
 {
 	dev_err(par->info->device, "%s: function not implemented\n", __func__);
 	return -1;
@@ -342,17 +238,14 @@ int fbtft_write_vmem8_bus8(struct fbtft_par *par)
 EXPORT_SYMBOL(fbtft_write_vmem8_bus8);
 
 /* 16 bit pixel over 16-bit databus */
-int fbtft_write_vmem16_bus16(struct fbtft_par *par)
+int fbtft_write_vmem16_bus16(struct fbtft_par *par, size_t offset, size_t len)
 {
 	u16 *vmem16;
-	size_t offset, len;
 
-	offset = par->dirty_lines_start * par->info->fix.line_length;
-	len = (par->dirty_lines_end - par->dirty_lines_start + 1) * par->info->fix.line_length;
-	vmem16 = (u16 *)(par->info->screen_base + offset);
-
-	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s: offset=%d, len=%d\n",
+	fbtft_par_dbg(DEBUG_WRITE_VMEM, par, "%s(offset=%zu, len=%zu)\n",
 		__func__, offset, len);
+
+	vmem16 = (u16 *)(par->info->screen_base + offset);
 
 	if (par->gpio.dc != -1)
 		gpio_set_value(par->gpio.dc, 1);

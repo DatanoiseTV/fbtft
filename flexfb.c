@@ -143,15 +143,15 @@ static void flexfb_set_addr_win_1(struct fbtft_par *par, int xs, int ys, int xe,
 		write_reg(par, 0x0020, xs);
 		write_reg(par, 0x0021, ys);
 		break;
-	case 2:
+	case 180:
 		write_reg(par, 0x0020, width - 1 - xs);
 		write_reg(par, 0x0021, height - 1 - ys);
 		break;
-	case 1:
+	case 270:
 		write_reg(par, 0x0020, width - 1 - ys);
 		write_reg(par, 0x0021, xs);
 		break;
-	case 3:
+	case 90:
 		write_reg(par, 0x0020, ys);
 		write_reg(par, 0x0021, height - 1 - xs);
 		break;
@@ -171,15 +171,15 @@ static void flexfb_set_addr_win_2(struct fbtft_par *par, int xs, int ys, int xe,
 		write_reg(par, 0x4e, xs);
 		write_reg(par, 0x4f, ys);
 		break;
-	case 2:
+	case 180:
 		write_reg(par, 0x4e, par->info->var.xres - 1 - xs);
 		write_reg(par, 0x4f, par->info->var.yres - 1 - ys);
 		break;
-	case 1:
+	case 270:
 		write_reg(par, 0x4e, par->info->var.yres - 1 - ys);
 		write_reg(par, 0x4f, xs);
 		break;
-	case 3:
+	case 90:
 		write_reg(par, 0x4e, ys);
 		write_reg(par, 0x4f, par->info->var.xres - 1 - xs);
 		break;
@@ -397,11 +397,9 @@ static int flexfb_probe_common(struct spi_device *sdev, struct platform_device *
 	switch (regwidth) {
 	case 8:
 		par->fbtftops.write_register = fbtft_write_reg8_bus8;
-		par->fbtftops.write_data_command = fbtft_write_data_command8_bus8;
 		break;
 	case 16:
 		par->fbtftops.write_register = fbtft_write_reg16_bus8;
-		par->fbtftops.write_data_command = fbtft_write_data_command16_bus8;
 		break;
 	default:
 		dev_err(dev, "argument 'regwidth': %d is not supported.\n", regwidth);
@@ -421,7 +419,6 @@ static int flexfb_probe_common(struct spi_device *sdev, struct platform_device *
 				dev_err(dev, "argument 'regwidth': %d is not supported with buswidth=%d and SPI.\n", regwidth, buswidth);
 				return -EINVAL;
 			}
-			par->fbtftops.write_data_command = fbtft_write_data_command8_bus9;
 			par->fbtftops.write_register = fbtft_write_reg8_bus9;
 			par->fbtftops.write_vmem = fbtft_write_vmem16_bus9;
 			sdev->bits_per_word=9;
@@ -445,7 +442,6 @@ static int flexfb_probe_common(struct spi_device *sdev, struct platform_device *
 			break;
 		case 16:
 			par->fbtftops.write_register = fbtft_write_reg16_bus16;
-			par->fbtftops.write_data_command = fbtft_write_data_command16_bus16;
 			if (latched)
 				par->fbtftops.write = fbtft_write_gpio16_wr_latched;
 			else

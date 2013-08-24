@@ -108,20 +108,18 @@ static unsigned int rgb565_to_y(unsigned int rgb)
 	return CYR * (rgb >> 11) + CYG * (rgb >> 5 & 0x3F) + CYB * (rgb & 0x1F);
 }
 
-static int write_vmem(struct fbtft_par *par)
+static int write_vmem(struct fbtft_par *par, size_t offset, size_t len)
 {
 	u16 *vmem16 = (u16 *)(par->info->screen_base);
 	u8 *buf = par->txbuf.buf;
-	size_t offset;
 	int y, x, bl_height, bl_width;
 	int ret = 0;
 
 	/* Set data line beforehand */
 	gpio_set_value(par->gpio.dc, 1);
 
-	offset = par->dirty_lines_start * par->info->var.xres;
 	bl_width = par->info->var.xres;
-	bl_height = par->dirty_lines_end - par->dirty_lines_start+1;
+	bl_height = len / par->info->fix.line_length;
 
 	fbtft_par_dbg(DEBUG_WRITE_VMEM, par,
 		"%s(offset=0x%x bl_width=%d bl_height=%d)\n", __func__, offset, bl_width, bl_height);
