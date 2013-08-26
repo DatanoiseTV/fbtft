@@ -105,6 +105,7 @@ static int blank(struct fbtft_par *par, bool on)
 
 static unsigned int rgb565_to_y(unsigned int rgb)
 {
+	rgb = cpu_to_le16(rgb);
 	return CYR * (rgb >> 11) + CYG * (rgb >> 5 & 0x3F) + CYB * (rgb & 0x1F);
 }
 
@@ -118,6 +119,8 @@ static int write_vmem(struct fbtft_par *par, size_t offset, size_t len)
 	/* Set data line beforehand */
 	gpio_set_value(par->gpio.dc, 1);
 
+	/* convert offset to word index from byte index */
+	offset /= 2;
 	bl_width = par->info->var.xres;
 	bl_height = len / par->info->fix.line_length;
 
@@ -126,8 +129,8 @@ static int write_vmem(struct fbtft_par *par, size_t offset, size_t len)
 
 	for (y = 0; y < bl_height; y++) {
 		for (x = 0; x < bl_width / 2; x++) {
-			*buf = rgb565_to_y(vmem16[offset++]) >> 8 & 0xF0;
-			*buf++ |= rgb565_to_y(vmem16[offset++]) >> 12;
+			*buf = cpu_to_le16(rgb565_to_y(vmem16[offset++])) >> 8 & 0xF0;
+			*buf++ |= cpu_to_le16(rgb565_to_y(vmem16[offset++])) >> 12;
 		}
 	}
 
