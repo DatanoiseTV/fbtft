@@ -3,6 +3,7 @@ obj-$(CONFIG_FB_TFT)             += fbtft.o
 fbtft-y                          += fbtft-core.o fbtft-sysfs.o fbtft-bus.o fbtft-io.o
 
 # drivers
+obj-$(CONFIG_FB_TFT_GU39XX)      += fb_gu39xx.o
 obj-$(CONFIG_FB_TFT_HX8340BN)    += fb_hx8340bn.o
 obj-$(CONFIG_FB_TFT_HX8347D)     += fb_hx8347d.o
 obj-$(CONFIG_FB_TFT_ILI9320)     += fb_ili9320.o

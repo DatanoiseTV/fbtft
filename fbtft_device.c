@@ -242,6 +242,34 @@ static struct fbtft_device_display displays[] = {
 			}
 		}
 	}, {
+		.name = "gu256x64-3900",
+		.pdev = &(struct platform_device) {
+			.name = "fb_gu39xx",
+			.id = 0,
+			.dev = {
+			.release = fbtft_device_pdev_release,
+			.platform_data = &(struct fbtft_platform_data) {
+				.display = {
+					.buswidth = 8,
+					.backlight = 1,
+				},
+				.gpios = (const struct fbtft_gpio []) {
+					{ "wr", 13 },
+					{ "ready", 11 },
+					{ "db00", 14 },
+					{ "db01", 15 },
+					{ "db02", 16 },
+					{ "db03", 17 },
+					{ "db04", 18 },
+					{ "db05", 19 },
+					{ "db06", 20 },
+					{ "db07", 21 },
+					{},
+				},
+			},
+			}
+		}
+	}, {
 		.name = "hy28a",
 		.spi = &(struct spi_board_info) {
 			.modalias = "fb_ili9320",
