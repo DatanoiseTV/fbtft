@@ -15,7 +15,11 @@
 #define GAMMA_LEN   15
 #define DEFAULT_GAMMA "7 1 1 1 1 2 2 3 3 4 4 5 5 6 6"
 
-int init[] = {			/* Initialization for LM560G-256064 5.6" OLED display */
+#ifndef dev_fmt
+#define dev_fmt(fmt) fmt
+#endif
+
+static const s16 init[] = {			/* Initialization for LM560G-256064 5.6" OLED display */
 	-1, 0xFD, 0x12,		/* Unlock OLED driver IC */
 	-1, 0xAE,		/* Display OFF (blank) */
 	-1, 0xB3, 0xF3,		/* Display divide clockratio/frequency */
@@ -57,9 +61,9 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 	0 = Setting of GS1 < Setting of GS2 < Setting of GS3..... < Setting of GS14 < Setting of GS15
 
 */
-static int set_gamma(struct fbtft_par *par, unsigned long *curves)
+static int set_gamma(struct fbtft_par *par, u32 *curves)
 {
-	unsigned long tmp[GAMMA_LEN * GAMMA_NUM];
+	u32 tmp[GAMMA_LEN * GAMMA_NUM];
 	int i, acc = 0;
 
 	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
@@ -87,6 +91,14 @@ static int set_gamma(struct fbtft_par *par, unsigned long *curves)
 
 	return 0;
 }
+
+/*static int set_gamma(struct fbtft_par *par, u32 *curves) {
+	curves[0] &= 0xFF;
+	write_reg(par, 0x81);
+	write_reg(par, curves[0]);
+
+	return 0;
+}*/
 
 static int blank(struct fbtft_par *par, bool on)
 {
@@ -117,7 +129,7 @@ static int write_vmem(struct fbtft_par *par, size_t offset, size_t len)
 	int ret = 0;
 
 	/* Set data line beforehand */
-	gpio_set_value(par->gpio.dc, 1);
+	gpiod_set_value(par->gpio.dc, 1);
 
 	/* convert offset to word index from byte index */
 	offset /= 2;
@@ -125,7 +137,7 @@ static int write_vmem(struct fbtft_par *par, size_t offset, size_t len)
 	bl_height = len / par->info->fix.line_length;
 
 	fbtft_par_dbg(DEBUG_WRITE_VMEM, par,
-		"%s(offset=0x%x bl_width=%d bl_height=%d)\n", __func__, offset, bl_width, bl_height);
+		"%s(offset=%zu, len=%zu)\n", __func__, offset, len);
 
 	for (y = 0; y < bl_height; y++) {
 		for (x = 0; x < bl_width / 2; x++) {
@@ -158,7 +170,9 @@ static struct fbtft_display display = {
 		.set_gamma = set_gamma,
 	},
 };
-FBTFT_REGISTER_DRIVER(DRVNAME, &display);
+
+
+FBTFT_REGISTER_DRIVER(DRVNAME,"soloman,ssd1322", &display);
 
 MODULE_ALIAS("spi:" DRVNAME);
 MODULE_ALIAS("platform:" DRVNAME);
