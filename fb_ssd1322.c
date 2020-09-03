@@ -19,27 +19,32 @@
 #define dev_fmt(fmt) fmt
 #endif
 
-static const s16 init[] = {			/* Initialization for LM560G-256064 5.6" OLED display */
-	-1, 0xFD, 0x12,		/* Unlock OLED driver IC */
-	-1, 0xAE,		/* Display OFF (blank) */
-	-1, 0xB3, 0xF3,		/* Display divide clockratio/frequency */
-	-1, 0xCA, 0x3F,		/* Multiplex ratio, 1/64, 64 COMS enabled */
-	-1, 0xA2, 0x00,		/* Set offset, the display map starting line is COM0 */
-	-1, 0xA1, 0x00,		/* Set start line position */
-	-1, 0xA0, 0x14, 0x11,	/* Set remap, horiz address increment, disable colum address remap, */
-				/*  enable nibble remap, scan from com[N-1] to COM0, disable COM split odd even */
-	-1, 0xAB, 0x01,		/* Select external VDD */
-	-1, 0xB4, 0xA0, 0xFD,	/* Display enhancement A, external VSL, enhanced low GS display quality */
-	-1, 0xC1, 0xFF,		/* Contrast current, 256 steps, default is 0x7F */
-	-1, 0xC7, 0x0F,		/* Master contrast current, 16 steps, default is 0x0F */
-	-1, 0xB1, 0xF0,		/* Phase Length */
-	-1, 0xD1, 0x82, 0x20	/* Display enhancement B */
-	-1, 0xBB, 0x0D,		/* Pre-charge voltage */
-	-1, 0xBE, 0x00,		/* Set VCOMH */
-	-1, 0xA6,		/* Normal display */
-	-1, 0xAF,		/* Display ON */
-	-3 };
+static int init_display(struct fbtft_par *par) {
+	par->fbtftops.reset(par);
+	gpio_set_value(par->gpio.cs, 0);
 
+	write_reg(par, 0xFD, 0x12);			/* Unlock OLED driver IC */	
+	write_reg(par, 0xAE);				/* Display OFF (blank) */
+	write_reg(par, 0xB3, 0xF3);			/* Display divide clockratio/frequency */
+	write_reg(par, 0xCA, 0x3F);			/* Multiplex ratio, 1/64, 64 COMS enabled */
+	write_reg(par, 0xA2, 0x00);			/* Set offset, the display map starting line is COM0 */
+	write_reg(par, 0xA1, 0x00);			/* Set start line position */
+	write_reg(par, 0xA0, 0x14, 0x11);	/* Set remap, horiz address increment, disable colum address remap, */
+										/*  enable nibble remap, scan from com[N-1] to COM0, disable COM split odd even */
+	write_reg(par, 0xAB, 0x01);			/* Select external VDD */
+	write_reg(par, 0xB4, 0xA0, 0xFD);	/* Display enhancement A, external VSL, enhanced low GS display quality */
+	write_reg(par, 0xC1, 0xFF);			/* Contrast current, 256 steps, default is 0x7F */
+	write_reg(par, 0xC7, 0x0F);			/* Master contrast current, 16 steps, default is 0x0F */
+	write_reg(par, 0xB1, 0xF0);			/* Phase Length */
+	write_reg(par, 0xD1, 0x82, 0x20);	/* Display enhancement B */
+	write_reg(par, 0xBB, 0x0D);			/* Pre-charge voltage */
+	write_reg(par, 0xBE, 0x00);			/* Set VCOMH */
+	write_reg(par, 0xA6);				/* Blackout display */
+	// write_reg(par, 0xA4);				/* Normal display */
+	write_reg(par, 0xAF);				/* Display ON */
+
+	return 0;
+};
 
 static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
@@ -63,7 +68,7 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 */
 static int set_gamma(struct fbtft_par *par, u32 *curves)
 {
-	u32 tmp[GAMMA_LEN * GAMMA_NUM];
+	unsigned long tmp[GAMMA_LEN * GAMMA_NUM];
 	int i, acc = 0;
 
 	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
@@ -91,14 +96,6 @@ static int set_gamma(struct fbtft_par *par, u32 *curves)
 
 	return 0;
 }
-
-/*static int set_gamma(struct fbtft_par *par, u32 *curves) {
-	curves[0] &= 0xFF;
-	write_reg(par, 0x81);
-	write_reg(par, curves[0]);
-
-	return 0;
-}*/
 
 static int blank(struct fbtft_par *par, bool on)
 {
@@ -162,21 +159,23 @@ static struct fbtft_display display = {
 	.gamma_num = GAMMA_NUM,
 	.gamma_len = GAMMA_LEN,
 	.gamma = DEFAULT_GAMMA,
-	.init_sequence = init,
 	.fbtftops = {
 		.write_vmem = write_vmem,
+		.init_display = init_display,
 		.set_addr_win  = set_addr_win,
 		.blank = blank,
 		.set_gamma = set_gamma,
 	},
 };
 
-
 FBTFT_REGISTER_DRIVER(DRVNAME,"soloman,ssd1322", &display);
 
 MODULE_ALIAS("spi:" DRVNAME);
 MODULE_ALIAS("platform:" DRVNAME);
+MODULE_ALIAS("spi:ssd1322");
+MODULE_ALIAS("platform:ssd1322");
+
 
 MODULE_DESCRIPTION("SSD1322 OLED Driver");
-MODULE_AUTHOR("Ryan Press");
+MODULE_AUTHOR("Peter Shen");
 MODULE_LICENSE("GPL");
